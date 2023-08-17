@@ -2,13 +2,10 @@ from typing import Generic, Type, TypeVar, List, Tuple
 from sqlmodel import SQLModel, Session, select, delete, update, and_, or_
 from sqlalchemy.future import Engine
 from sqlalchemy.dialects.postgresql import insert
-from sdc.db.utils import jsonable_encoder
-from sdc.db import models
-from sdc.db.db import engine
+from . import models
+from .db import engine
 import pandas as pd
-from datetime import datetime, timedelta
-from sdc.config import config
-from utils import cohere_embed
+from llm import cohere_embed
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 EngineType = TypeVar("EngineType", bound=Engine)

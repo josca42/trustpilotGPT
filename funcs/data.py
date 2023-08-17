@@ -2,9 +2,22 @@ from db import crud, exec_sql
 import pandas as pd
 import jinja2
 from .CONSTANTS import CATEGORY_INT2STR, CATEGORY_STR2INT
-from utils import num_tokens_from_string, gpt_completion
+from llm import num_tokens_from_string, gpt_completion
 
 MAX_TOKENS = 6000
+COLS = [
+    "content",
+    "rating",
+    "label",
+    "timestamp",
+    "os",
+    "app_version",
+    "bank_id",
+    "bank",
+    "bank_category",
+    "bank_central",
+    "country",
+]
 
 
 def get_data(review_queries: list(dict)) -> pd.DataFrame:
@@ -13,16 +26,16 @@ def get_data(review_queries: list(dict)) -> pd.DataFrame:
         retrieve = query.pop("retrieve", None)
         params = json_to_params(query)
         if retrieve == "statistics":
-            df = get_review_stats(query)
+            df = get_review_stats(params)
         else:
-            df = get_review_data(query)
+            df = get_review_data(params)
             query_results.append(dict(query=query, data=df.to_dict("records")))
     return query_results
 
 
 def get_review_data(params: dict) -> pd.DataFrame:
     source = params.pop("source")
-    params.update({"cols": cols, "limit": limit})
+    params.update({"cols": COLS, "limit": 100})
     df = (
         crud.app_review.where_api(**params)
         if source == "app"
@@ -40,12 +53,12 @@ def get_review_stats(params: dict) -> pd.DataFrame:
     end_date = params.pop("end_date", None)
 
     filters_stmt = " AND ".join(
-        [f"{k} = {v}" if type(v) == int else f"{k} = '{v}'" for k, v in filters.items()]
+        [f"{k} = {v}" if type(v) == int else f"{k} = '{v}'" for k, v in params.items()]
     )
 
     chatgpt_query = SQL_QUERY_TEMPLATE.render(
         table=table,
-        question=query,
+        question=filters_stmt,
         filters=filters_stmt,
         start_date=start_date,
         end_date=end_date,

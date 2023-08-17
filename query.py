@@ -7,15 +7,13 @@ from json.decoder import JSONDecodeError
 from datetime import datetime
 import json5
 from datetime import datetime
-from utils import gpt_stream_completion
+from llm import gpt_stream_completion, gpt_completion
 from funcs.data import get_data
 
 
-def data(query: str, st_msg_placeholder):
+def data(query: str, st_msg_placeholder=None):
     json_request_string = query_to_request_json(query, st_msg_placeholder)
     json_request = parse_request_string(json_request_string)
-    review_queries, stats_queries = extract_queries(json_request)
-
     data = get_data(json_request)
     # FIXME do some processing on the data
     return data
@@ -28,8 +26,8 @@ def query_to_request_json(query: str, st_msg_placeholder) -> str:
         content=API_CALL_SYSTEM_MSG_TEMPLATE.render(current_date=current_date),
     )
     chat_msgs = API_CALL_EXAMPLES + [dict(role="user", content=query)]
-    json_request_string = gpt_stream_completion(
-        messages=[system_msg, *chat_msgs], st_msg_placeholder=st_msg_placeholder
+    json_request_string = gpt_completion(
+        messages=[system_msg, *chat_msgs]  # , st_msg_placeholder=st_msg_placeholder
     )
     return json_request_string
 
@@ -45,17 +43,6 @@ def parse_request_string(json_request_string: str):
                 f"Could not decode JSON request string: {json_request_string}"
             )
     return json_request
-
-
-def extract_queries(json_request):
-    review_queries, stats_queries = [], []
-    for q in json_request:
-        retrieve = q.pop("retrieve", None)
-        if retrieve == "statistics":
-            stats_queries.append(q)
-        else:
-            review_queries.append(q)
-    return review_queries, stats_queries
 
 
 ###    Prompt templates    ###

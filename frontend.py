@@ -19,23 +19,6 @@ with st.sidebar:
 
     st.caption("Today")
     st.button("Enter some text", key="1", use_container_width=True)
-    st.button("Enter some text", key="2", use_container_width=True)
-    st.button("Enter some text", key="3", use_container_width=True)
-    st.caption("Yesterday")
-    st.button("Enter some text", key="5", use_container_width=True)
-    st.button("Enter some text", key="6", use_container_width=True)
-    st.button("Enter some text", key="7", use_container_width=True)
-    st.caption("7 days")
-    st.button("Enter some text", key="8", use_container_width=True)
-    st.button("Enter some text", key="9", use_container_width=True)
-    st.button("Enter some text", key="10", use_container_width=True)
-    st.button("Enter some text", key="11", use_container_width=True)
-    st.button("Enter some text", key="12", use_container_width=True)
-    st.button("Enter some text", key="13", use_container_width=True)
-    st.button("Enter some text", key="14", use_container_width=True)
-    st.button("Enter some text", key="15", use_container_width=True)
-    st.button("Enter some text", key="16", use_container_width=True)
-    st.button("Enter some text", key="17", use_container_width=True)
 
 
 if "openai_model" not in st.session_state:

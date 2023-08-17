@@ -15,7 +15,7 @@ def gpt_stream_completion(messages, st_msg_placeholder, temperature=0, functions
     #         model="gpt-4",
     #         messages=messages,
     #         temperature=temperature,
-    #         function_call=functions,
+    #         functions=functions,
     #         stream=True,
     #     )
     # else:
@@ -31,19 +31,24 @@ def gpt_stream_completion(messages, st_msg_placeholder, temperature=0, functions
     return full_response
 
 
-def gpt_completion(messages, temperature=0, functions=[], stop=None):
+def gpt_completion(
+    messages, system_msg, wandb_tracer, temperature=0, functions=[], stop=None
+):
+    messages = [dict(role="system", content=system_msg)] + messages
     if functions:
-        response = openai.Completion.create(
-            model="gpt-4",
-            prompt=messages,
+        response = openai.ChatCompletion.create(
+            model="gpt-4-0613",
+            messages=messages,
             temperature=temperature,
-            function_call=functions,
+            functions=functions,
         )
+
     else:
-        response = openai.Completion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
-            prompt=messages,
+            messages=messages,
             temperature=temperature,
             stop=stop,
         )
-    return response.choices[0].message["content"]
+
+    return response.choices[0]
