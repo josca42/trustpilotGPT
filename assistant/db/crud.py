@@ -2,8 +2,8 @@ from typing import Generic, Type, TypeVar, List, Tuple
 from sqlmodel import SQLModel, Session, select, delete, update, and_, or_
 from sqlalchemy.future import Engine
 from sqlalchemy.dialects.postgresql import insert
-from . import models
-from .db import engine
+from assistant.db import models
+from assistant.db.db import engine
 import pandas as pd
 from llm import cohere_embed
 
@@ -132,6 +132,8 @@ class CRUDReview(CRUDBase[ModelType, EngineType]):
         equals: dict = {},
         similarity_query: str = None,
         limit=None,
+        *args,
+        **kwargs
     ) -> List[ModelType]:
         with Session(self.engine) as session:
             stmt = select(*[getattr(self.model, s) for s in cols])

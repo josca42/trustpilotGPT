@@ -7,42 +7,35 @@ from json.decoder import JSONDecodeError
 from datetime import datetime
 import json5
 from datetime import datetime
-from llm import gpt_stream_completion, gpt_completion
-from funcs.data import get_data
+from assistant.funcs.data import query_data
 
 
-def data(query: str, st_msg_placeholder=None):
-    json_request_string = query_to_request_json(query, st_msg_placeholder)
-    json_request = parse_request_string(json_request_string)
-    data = get_data(json_request)
+def data(query: str, gpt):
+    json_request_string = query_to_request_json(query, gpt)
+    queries = parse_request_string(json_request_string)
+    query_results = query_data(queries, gpt)
     # FIXME do some processing on the data
-    return data
+    return query_results
 
 
-def query_to_request_json(query: str, st_msg_placeholder) -> str:
+def query_to_request_json(query: str, gpt) -> str:
     current_date = datetime.now().strftime("%Y-%m-%d")
-    system_msg = dict(
-        role="system",
-        content=API_CALL_SYSTEM_MSG_TEMPLATE.render(current_date=current_date),
+    system_msg = API_CALL_SYSTEM_MSG_TEMPLATE.render(current_date=current_date)
+    messages = (
+        [dict(role="system", content=system_msg)]
+        + API_CALL_EXAMPLES
+        + [dict(role="user", content=query)]
     )
-    chat_msgs = API_CALL_EXAMPLES + [dict(role="user", content=query)]
-    json_request_string = gpt_completion(
-        messages=[system_msg, *chat_msgs]  # , st_msg_placeholder=st_msg_placeholder
-    )
-    return json_request_string
+    json_request_string = gpt.completion(messages=messages)
+    return json_request_string.message.content
 
 
 def parse_request_string(json_request_string: str):
     try:
         json_request = json.loads(json_request_string)
     except JSONDecodeError:
-        try:
-            json_request = json5.loads(json_request_string)
-        except:
-            raise Exception(
-                f"Could not decode JSON request string: {json_request_string}"
-            )
-    return json_request
+        raise Exception(f"Could not decode JSON request string: {json_request_string}")
+    return json_request["queries"]
 
 
 ###    Prompt templates    ###
@@ -63,7 +56,7 @@ API_CALL_SYSTEM_MESSAGE = """Your task is to convert a given question into an AP
       "bank": "bank name",
       "country": "country code",
       "similarity_query": "similarity query text"
-      "retrieve": "reviews or statistics",
+      "query": "statistics query text",
     }
   ]
 }
@@ -77,7 +70,7 @@ Guidelines for query object fields:
 4. bank: Mention the bank's name if the question is about a specific bank, otherwise, omit this field.
 5. country: Use the respective country code (e.g., 'DK', 'NO', 'SE', 'FO', 'UK', 'NZ') if a specific country is mentioned, otherwise, omit this field.
 6. similarity_query: Set this field with the query text if a specific semantic query is mentioned, otherwise, omit it.
-7. retrieve: Set as 'reviews' to retrieve reviews and 'statistics' to retrieve statistics. If not specified, the default value is 'reviews'.
+7. query: To retrieve reviews, omit this field. To retrieve statistics, set this field to the statistics query.
 
 For complex questions, divide them into sub-questions and refine results using the parameters 'date_range', 'category', 'bank', and 'country', with the optional 'similarity_query' for querying or ordering by semantic similarity. Ensure you accurately transform the question into the JSON structure, taking care to attend to the subtleties and details provided in the prompt."""
 

@@ -1,8 +1,9 @@
-from db import crud, exec_sql
+from assistant.db import crud
 import pandas as pd
-import jinja2
+import jinja2 import 
+from llm import num_tokens_from_string
 from .CONSTANTS import CATEGORY_INT2STR, CATEGORY_STR2INT
-from llm import num_tokens_from_string, gpt_completion
+
 
 MAX_TOKENS = 6000
 COLS = [
@@ -20,16 +21,21 @@ COLS = [
 ]
 
 
-def get_data(review_queries: list(dict)) -> pd.DataFrame:
+def query_data(review_queries: list[dict], gpt) -> list[dict]:
+    """
+    parent_trace: Wandb parent logging execution of an LLM chain.
+    """
     query_results = []
     for query in review_queries:
-        retrieve = query.pop("retrieve", None)
+        data_query = query.pop("query", None)
         params = json_to_params(query)
-        if retrieve == "statistics":
-            df = get_review_stats(params)
+        if data_query:
+            df, sql_query = get_review_stats(params, data_query=data_query, gpt=gpt)
+            query["sql_query"] = sql_query
         else:
             df = get_review_data(params)
-            query_results.append(dict(query=query, data=df.to_dict("records")))
+
+        query_results.append(dict(query=query, df_descr=descr_df(df), df=df))
     return query_results
 
 
@@ -46,30 +52,33 @@ def get_review_data(params: dict) -> pd.DataFrame:
     return df
 
 
-def get_review_stats(params: dict) -> pd.DataFrame:
+def get_review_stats(params: dict, data_query: str, gpt) -> pd.DataFrame:
     source = params.pop("source")
     table = "app_review" if source == "app" else "bank_review"
     start_date = params.pop("start_date", None)
     end_date = params.pop("end_date", None)
 
     filters_stmt = " AND ".join(
-        [f"{k} = {v}" if type(v) == int else f"{k} = '{v}'" for k, v in params.items()]
+        [
+            f"{k} = {v}" if type(v) == int else f"{k} = '{v}'"
+            for k, v in params["equals"].items()
+        ]
     )
 
     chatgpt_query = SQL_QUERY_TEMPLATE.render(
         table=table,
-        question=filters_stmt,
+        question=data_query,
         filters=filters_stmt,
         start_date=start_date,
         end_date=end_date,
     )
-    query_str = gpt_completion(
+    sql_query = gpt.completion(
         messages=[dict(role="user", content=chatgpt_query)],
         stop="\nSQLResult:",
-    )
-    query_str = query_str.strip('"')
-    df = exec_sql(query_str)
-    return df, query_str
+    ).message.content
+    sql_query = sql_query.strip('"')
+    df = crud.exec_sql(sql_query)
+    return df, sql_query
 
 
 def json_to_params(json_request: dict) -> dict:
@@ -134,6 +143,15 @@ def str2date(date_str):
         return pd.to_datetime(date_str).date()
     except:
         return None
+
+
+def descr_df(df: pd.DataFrame) -> str:
+    summary = ""
+    summary += f"The dataframe has {df.shape[0]} rows and {df.shape[1]} columns.\n"
+    summary += "\nColumn details:\n"
+    for col in df.columns:
+        summary += f"- {col}: {df[col].dtype} (Non-null: {df[col].notna().sum()} of {df.shape[0]})\n"
+    return summary
 
 
 ###    Prompt templates    ###
