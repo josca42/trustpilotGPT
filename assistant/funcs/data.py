@@ -1,6 +1,6 @@
 from assistant.db import crud
 import pandas as pd
-import jinja2 import 
+import jinja2
 from llm import num_tokens_from_string
 from .CONSTANTS import CATEGORY_INT2STR, CATEGORY_STR2INT
 
