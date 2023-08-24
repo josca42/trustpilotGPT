@@ -20,8 +20,6 @@ run = wandb.init(
 
 config = dotenv_values()
 
-LLM_cohere = cohere.Client(config["COHERE_API_KEY"])
-
 
 def num_tokens_from_string(string: str, model: str = "gpt-3.5-turbo") -> int:
     """Returns the number of tokens in a text string."""

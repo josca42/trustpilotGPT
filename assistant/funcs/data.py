@@ -44,7 +44,6 @@ def query_data(review_queries: list[dict], gpt) -> list[dict]:
                     type="records",
                 )
             )
-
     return query_results
 
 
