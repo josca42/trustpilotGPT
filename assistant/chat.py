@@ -23,10 +23,12 @@ run = wandb.init(
 
 
 def chat(messages: list[dict]):
+    actions = ""
+    records, data = [], []
     while True:
-        actions = ""
+
         gpt = GPT(log=False)
-        messages = [dict(role="system", content=ANALYST_SYSTEM_MSG)] + messages
+        messages = [dict(role="system", content=ANALYST_SYSTEM_MSG.render(records=records))] + messages
 
         response = gpt.completion(messages=messages, functions=[DATA_FUNC])
 
@@ -38,7 +40,9 @@ def chat(messages: list[dict]):
             func_name, func_args = func_call.name, json.loads(func_call.arguments)
             if func_name == "get_review_data":
                 query_results = query.data(query=func_args["query"], gpt=gpt)
-                
+                records = [q for q in query_results if q["type"] == "records"]
+                data = [q for q in query_results if q["type"] == "data"]
+                           
             elif func_name == "analyse":
                 
             elif func_name == "plot":
@@ -56,16 +60,16 @@ def chat(messages: list[dict]):
 ###    Prompt templates   ###
 
 
-ANALYST_SYSTEM_MSG = """As a skilled analyst specializing in customer review data, your task is to answer questions from bank employees and app developers about the customer review data for either the mobile bank app or the bank itself.
+ANALYST_SYSTEM_MSG = Template("""As a skilled analyst specializing in customer review data, your task is to answer questions from bank employees and app developers about the customer review data for either the mobile bank app or the bank itself.
 
 When answering questions you have access to querying review data, analysing queried data and plotting data.
 
 
-{% if query_results -%}
+{% if records -%}
 You have run the run the following queries and received the following result:
-{{ query_results }}
+{{ query_records }}
 {% endif -%}
-"""
+""")
 
 DATA_FUNC = {
     "name": "get_review_data",

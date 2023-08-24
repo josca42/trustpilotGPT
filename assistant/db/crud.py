@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import insert
 from assistant.db import models
 from assistant.db.db import engine
 import pandas as pd
-from llm import cohere_embed
+from assistant.llm import embed
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 EngineType = TypeVar("EngineType", bound=Engine)
@@ -81,50 +81,27 @@ class CRUDBase(Generic[ModelType, EngineType]):
         return pd.DataFrame([r.dict() for r in result])
 
 
-class CRUDBank(CRUDBase[models.Bank, Engine]):
-    ...
-
-
-class CRUDReview(CRUDBase[ModelType, EngineType]):
+class CRUDCompany(CRUDBase[models.Company, Engine]):
     def where(
-        self, cols, start_date=None, end_date=None, equals: dict = {}, _in: dict = {}
-    ) -> List[ModelType]:
+        self, similarity_query: str, lookup_type: str, type: str = None
+    ) -> Tuple[str, str]:
+        query_emb = cohere_embed(similarity_query)[0]
         with Session(self.engine) as session:
-            stmt = select(*[getattr(self.model, s) for s in cols])
-            where_stmts = []
-            os = equals.pop("os", None)
-            rating = _in.pop("rating", None)
-            source = _in.pop("source", None)
-            if equals:
-                where_stmts += [getattr(self.model, k) == v for k, v in equals.items()]
-            if _in:
-                where_stmts += [getattr(self.model, k).in_(v) for k, v in _in.items()]
-            if where_stmts:
-                stmt = stmt.where(or_(*where_stmts))
+            stmt = select(self.model.name, self.model.type)
+            stmt = (
+                stmt.where(
+                    and_(self.model.lookup_type == lookup_type, self.model.type == type)
+                )
+                if type
+                else stmt.where(self.model.lookup_type == lookup_type)
+            )
+            stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb)).limit(1)
+            result = session.exec(stmt).first()
+        return result
 
-            if os:
-                stmt = stmt.where(self.model.os == os)
-            if rating:
-                stmt = stmt.where(self.model.rating.in_(rating))
-            if source:
-                stmt = stmt.where(self.model.source.in_(source))
 
-            if start_date and end_date:
-                stmt = stmt.where(self.model.timestamp.between(start_date, end_date))
-            elif start_date:
-                stmt = stmt.where(self.model.timestamp >= start_date)
-            elif end_date:
-                stmt = stmt.where(self.model.timestamp <= end_date)
-            else:
-                pass
-
-            result = session.exec(stmt).all()
-        return pd.DataFrame.from_records(
-            result,
-            columns=cols,
-        )
-
-    def where_api(
+class CRUDReview(CRUDBase[models.Review, EngineType]):
+    def where(
         self,
         cols,
         start_date=None,
@@ -152,7 +129,7 @@ class CRUDReview(CRUDBase[ModelType, EngineType]):
                 pass
 
             if similarity_query:
-                query_emb = cohere_embed(similarity_query)[0]
+                query_emb = embed(similarity_query)[0]
                 stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb))
             else:
                 stmt.order_by(self.model.timestamp.desc())
@@ -164,38 +141,6 @@ class CRUDReview(CRUDBase[ModelType, EngineType]):
             result,
             columns=cols,
         )
-
-    def check_if_bank_has_reviews(self, bank_id) -> List[ModelType]:
-        with Session(self.engine) as session:
-            stmt = select(self.model).where(self.model.bank_id == bank_id)
-            return session.exec(stmt).first()
-
-
-class CRUDBankReview(CRUDReview[models.Bank_Review, Engine]):
-    ...
-
-
-class CRUDAppReview(CRUDReview[models.App_Review, Engine]):
-    ...
-
-
-class CRUDLookup(CRUDBase[models.Lookup, Engine]):
-    def where(
-        self, similarity_query: str, lookup_type: str, type: str = None
-    ) -> Tuple[str, str]:
-        query_emb = cohere_embed(similarity_query)[0]
-        with Session(self.engine) as session:
-            stmt = select(self.model.name, self.model.type)
-            stmt = (
-                stmt.where(
-                    and_(self.model.lookup_type == lookup_type, self.model.type == type)
-                )
-                if type
-                else stmt.where(self.model.lookup_type == lookup_type)
-            )
-            stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb)).limit(1)
-            result = session.exec(stmt).first()
-        return result
 
 
 def exec_sql(sql):
@@ -213,7 +158,5 @@ def exec_sql(sql):
         raise ValueError("Invalid SQL query")
 
 
-app_review = CRUDAppReview(models.App_Review, engine)
-bank_review = CRUDBankReview(models.Bank_Review, engine)
-bank = CRUDBank(models.Bank, engine)
-lookup = CRUDLookup(models.Lookup, engine)
+review = CRUDReview(models.Review, engine)
+company = CRUDCompany(models.Company, engine)

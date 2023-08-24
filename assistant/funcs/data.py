@@ -31,11 +31,20 @@ def query_data(review_queries: list[dict], gpt) -> list[dict]:
         params = json_to_params(query)
         if data_query:
             df, sql_query = get_review_stats(params, data_query=data_query, gpt=gpt)
-            query["sql_query"] = sql_query
+            query_results.append(
+                dict(query=sql_query, data_descr=descr_df(df), data=df, type="data")
+            )
         else:
             df = get_review_data(params)
+            query_results.append(
+                dict(
+                    query=data_query,
+                    data_descr=descr_df(df),
+                    data=df.to_dict("records"),
+                    type="records",
+                )
+            )
 
-        query_results.append(dict(query=query, df_descr=descr_df(df), df=df))
     return query_results
 
 
