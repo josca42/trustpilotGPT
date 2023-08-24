@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sdc-chat"
+name = "assistant"
 version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
@@ -13,6 +13,10 @@ wandb = "0.15.8"
 tiktoken = "0.4.0"
 plotly = "5.16.1"
 streamlit = "1.25.0"
+beautifulsoup4 = "4.12.2"
+pgvector = "0.2.1"
+python-dotenv = "1.0.0"
+psycopg2 = "2.9.7"
 
 [tool.poetry.dev-dependencies]
 
