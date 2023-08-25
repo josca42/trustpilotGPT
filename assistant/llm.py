@@ -7,10 +7,10 @@ import wandb
 from wandb.sdk.data_types.trace_tree import Trace
 import os
 from datetime import datetime
+from assistant.config import config
 
 os.environ["WANDB_MODE"] = "disabled"
 
-config = dotenv_values()
 wandb.login(
     key=config["WANDB_API_KEY"],
 )

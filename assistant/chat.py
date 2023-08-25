@@ -9,11 +9,11 @@ import json
 import os
 from llm import GPT
 from jinja2 import Template
+from assistant.config import config
 
 os.environ["WANDB_MODE"] = "disabled"
 
 
-config = dotenv_values()
 wandb.login(
     key=config["WANDB_API_KEY"],
 )

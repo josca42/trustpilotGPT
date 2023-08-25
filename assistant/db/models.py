@@ -24,7 +24,7 @@ class Company(SQLModel, table=True):
     embedding: Optional[list[float]] = Field(sa_column=Column(Vector(1536)))
 
 
-class Review(SQLModel):
+class Review(SQLModel, table=True):
     id: str = Field(primary_key=True, index=True)
     company_id: int = Field(foreign_key="company.id", index=True)
     company_name: str

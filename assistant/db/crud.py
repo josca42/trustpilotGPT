@@ -85,7 +85,7 @@ class CRUDCompany(CRUDBase[models.Company, Engine]):
     def where(
         self, similarity_query: str, lookup_type: str, type: str = None
     ) -> Tuple[str, str]:
-        query_emb = cohere_embed(similarity_query)[0]
+        query_emb = embed(similarity_query)[0]
         with Session(self.engine) as session:
             stmt = select(self.model.name, self.model.type)
             stmt = (

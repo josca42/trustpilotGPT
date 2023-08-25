@@ -2,10 +2,9 @@ import pandas as pd
 from copy import deepcopy
 import openai
 import json
-import jinja2
+from jinja2 import Template
 from json.decoder import JSONDecodeError
 from datetime import datetime
-import json5
 from datetime import datetime
 from assistant.funcs.data import query_data
 
@@ -20,7 +19,7 @@ def data(query: str, gpt):
 
 def query_to_request_json(query: str, gpt) -> str:
     current_date = datetime.now().strftime("%Y-%m-%d")
-    system_msg = API_CALL_SYSTEM_MSG_TEMPLATE.render(current_date=current_date)
+    system_msg = API_CALL_SYSTEM_MESSAGE.render(current_date=current_date)
     messages = (
         [dict(role="system", content=system_msg)]
         + API_CALL_EXAMPLES
@@ -39,9 +38,9 @@ def parse_request_string(json_request_string: str):
 
 
 ###    Prompt templates    ###
-jinja_env = jinja2.Environment()
 
-API_CALL_SYSTEM_MESSAGE = """Your task is to convert a given question into an API request using the JSON format shown below, which contains an array of queries. Keep in mind the guidelines for each field in the query object while converting the question.
+API_CALL_SYSTEM_MESSAGE = Template(
+    """Your task is to convert a given question into an API request using the JSON format shown below, which contains an array of queries. Keep in mind the guidelines for each field in the query object while converting the question.
 
 ```json
 {
@@ -73,8 +72,7 @@ Guidelines for query object fields:
 7. query: To retrieve reviews, omit this field. To retrieve statistics, set this field to the statistics query.
 
 For complex questions, divide them into sub-questions and refine results using the parameters 'date_range', 'category', 'bank', and 'country', with the optional 'similarity_query' for querying or ordering by semantic similarity. Ensure you accurately transform the question into the JSON structure, taking care to attend to the subtleties and details provided in the prompt."""
-
-API_CALL_SYSTEM_MSG_TEMPLATE = jinja_env.from_string(API_CALL_SYSTEM_MESSAGE)
+)
 
 API_CALL_EXAMPLES = [
     dict(
