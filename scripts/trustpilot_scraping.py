@@ -26,6 +26,7 @@ def scrape_companies(max_pages_to_scrape=100):
                 embedding=embed(company["displayName"])[0],
             )
             crud.company.upsert(company)
+            print(f"Company scraped: {company.name}")
 
         i += 1
         if i > max_pages_to_scrape:
@@ -115,5 +116,5 @@ def dump_reviews2db(reviews, company):
 
 
 if __name__ == "__main__":
-    scrape_company_reviews()
     scrape_companies()
+    scrape_company_reviews()
