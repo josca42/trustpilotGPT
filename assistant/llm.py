@@ -2,7 +2,6 @@ import tiktoken
 import openai
 from typing import Union, Optional
 from dotenv import dotenv_values
-import cohere
 import wandb
 from wandb.sdk.data_types.trace_tree import Trace
 import os
