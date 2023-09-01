@@ -17,17 +17,14 @@ class Company(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True, index=True)
     name: str
     homepage: str
-    stars: float
-    trust_score: float
-    n_reviews: int
     country: str
-    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(1536)))
+    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(768)))
 
 
 class Review(SQLModel, table=True):
     id: str = Field(primary_key=True, index=True)
     company_id: int = Field(foreign_key="company.id", index=True)
-    company_name: str
+    company: str = Field(index=True)
     timestamp: datetime = Field(index=True)
     created_at: Optional[datetime] = Field(
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -35,5 +32,5 @@ class Review(SQLModel, table=True):
     content: Optional[str] = ""
     rating: int
     likes: Optional[int] = None
-    category: Optional[str] = ""
-    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(1536)))
+    category: Optional[int] = Field(default=None, index=True)
+    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(768)))

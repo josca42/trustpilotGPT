@@ -2,19 +2,46 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly
 from datetime import timedelta
+from assistant.db import crud
 from .CONSTANTS import (
-    APP_REVIEW_LABELS,
-    APP_LABEL_COLORS,
     BANK_LABEL_COLORS,
     BANK_REVIEW_LABELS,
     COLORS,
 )
+from .utils import str2date
 
 
-def create_plot():
+def create_plot(companies: list[str], plot_type: str, start_date=None, end_date=None):
     # source
     #
-    ...
+    companies = [crud.company.most_similar_name(company) for company in companies]
+    start_date = str2date(start_date) if start_date else None
+    end_date = str2date(end_date) if end_date else None
+
+    df = crud.review.where(
+        _in={"company": companies},
+        cols=["company", "timestamp", "rating", "category"],
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if df.empty:
+        return go.Figure()
+
+    if plot_type == "pie chart total":
+        fig = ratings_pie_chart_total(df)
+    elif plot_type == "pie chart by category":
+        fig = ratings_pie_chart_category(df)
+    elif plot_type == "time series":
+        fig = ratings_time_series(df)
+    # elif plot_type == "timeseries compare":
+    #     fig = timeseries_compare(df)
+
+    # elif plot_type == "bar plot compare":
+    #     fig = bar_plot_compare(df)
+    else:
+        raise ValueError(f"Unknown plot type: {plot_type}")
+
+    return fig
 
 
 def ratings_pie_chart_total(df):
@@ -39,8 +66,8 @@ def ratings_pie_chart_total(df):
     return fig
 
 
-def ratings_pie_chart_category(df, review_type, categories):
-    LABELS = APP_REVIEW_LABELS if review_type == "App anm." else BANK_REVIEW_LABELS
+def ratings_pie_chart_category(df):
+    LABELS = BANK_REVIEW_LABELS
     N = len(LABELS)
     categories = categories if categories else list(range(N))
     fig = make_subplots(rows=1, cols=N, specs=[[{"type": "domain"}] * N])
@@ -55,7 +82,6 @@ def ratings_pie_chart_category(df, review_type, categories):
             textinfo="percent",
             sort=False,
             marker=dict(colors=colors),
-            opacity=0.5 if label_val not in categories else 1.0,
         )
         fig.add_trace(
             pie_chart,
@@ -66,13 +92,15 @@ def ratings_pie_chart_category(df, review_type, categories):
     fig = fig.update_traces(
         hole=0.6,
         hoverinfo="percent+value+name",
-        # marker=dict(colors=COLORS),
     )
     fig = fig.update_layout(showlegend=False)
     return fig
 
 
-def ratings_time_series(df, start_date, end_date):
+def ratings_time_series(df):
+    start_date, end_date = df["timestamp"].min(), df["timestamp"].max()
+    df = df.set_index("timestamp")
+
     GRAPH_LAYOUT = dict(
         margin=dict(t=0, b=0, l=0, r=0),
         xaxis=dict(rangeslider=dict(visible=False)),
@@ -136,50 +164,23 @@ def ratings_time_series(df, start_date, end_date):
     return fig
 
 
-def cross_section_compare(df_h):
-    df_p = df_h.reset_index()
-    fig = go.Figure(
-        go.Icicle(
-            labels=df_p["entity"],
-            parents=df_p["parent"],
-            text=df_p["name"],
-            values=df_p["log_count_int"],
-            customdata=df_p[["mean", "count", "id"]],
-            branchvalues="total",
-            maxdepth=5,
-            marker_colors=df_p["color"],
-            texttemplate=(
-                "%{text} <br>" "☆ %{customdata[0]:.1f}<br>" "# %{customdata[1]}<br>"
-            ),
-            hovertemplate=(
-                "<b>%{text} </b> <br>"
-                "Gnm. rating: %{customdata[0]:.1f}<br>"
-                "Antal anmeldelser: %{customdata[1]:.1f}<br>"
-                "<extra></extra>"
-            ),
-        )
-    )
-    fig = fig.update_layout(margin=dict(t=20, b=0, l=0, r=0))
-    return fig
-
-
-def timeseries_compare(df_r, lookups_plot, start_date, end_date, review_type):
-    if df_r.empty:
+def timeseries_compare(df, companies, start_date, end_date):
+    if df.empty:
         return go.Figure()
 
     colors = plotly.colors.qualitative.T10
-    LABELS = APP_REVIEW_LABELS if review_type == "App anm." else BANK_REVIEW_LABELS
-    COLORS = APP_LABEL_COLORS if review_type == "App anm." else BANK_LABEL_COLORS
+    LABELS = BANK_REVIEW_LABELS
+    COLORS = BANK_LABEL_COLORS
     freq = set_time_frequence(start_date, end_date)
-    fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
     # Add mean and count time series plots
     i = 0
     for col, values in lookups_plot:
         for value in values:
             if value == "total":
-                df_t = df_r["rating"]
+                df_t = df["rating"]
             else:
-                df_t = df_r.loc[df_r[col] == value, "rating"]
+                df_t = df.loc[df[col] == value, "rating"]
             df_t = df_t.resample(freq).agg(["mean", "count"]).fillna(0)
             fig.add_trace(
                 go.Scatter(
@@ -209,25 +210,6 @@ def timeseries_compare(df_r, lookups_plot, start_date, end_date, review_type):
                 col=1,
             )
             i += 1
-
-    # Add error type time series plot
-    total = df_r[df_r["label"].notna()]["label"].resample(freq).count()
-    for i, (label, label_val) in enumerate(LABELS):
-        df_t = df_r.loc[df_r["label"] == label_val, "rating"]
-        df_t = (df_t.resample(freq).count() / total * 100).fillna(0)
-        fig.add_trace(
-            go.Scatter(
-                x=df_t.index,
-                y=df_t.round(1),
-                name=label,
-                line=dict(color=COLORS[i]),
-                stackgroup="one",
-                showlegend=False,
-            ),
-            row=3,
-            col=1,
-        )
-    fig.update_yaxes(title_text="% kategori", row=3, col=1)
 
     fig.update_layout(
         margin=dict(t=0, b=0, l=0, r=0),

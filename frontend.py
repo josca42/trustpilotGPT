@@ -2,9 +2,10 @@ import streamlit as st
 import openai
 from dotenv import dotenv_values
 import numpy as np
+from assistant.chat import chat
 
 config = dotenv_values()
-
+st.session_state.messages = []
 
 st.title("ChatGPT-like clone")
 
@@ -38,21 +39,25 @@ if prompt := st.chat_input("What is up?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        stop_button = st.button("Stop Generating")
-        full_response = ""
-        for response in openai.ChatCompletion.create(
-            model=st.session_state["openai_model"],
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        ):
-            full_response += response.choices[0].delta.get("content", "")
-            message_placeholder.markdown(full_response + "▌")
-        message_placeholder.markdown(full_response)
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+        st, messages = chat(messages=st.session_state.messages, st=st)
+
+    st.session_state.messages = messages
+    #     message_placeholder = st.empty()
+    #     # stop_button = st.button("Stop Generating")
+    #     full_response = ""
+    #     for response in openai.ChatCompletion.create(
+    #         model=st.session_state["openai_model"],
+    #         messages=[
+    #             {"role": m["role"], "content": m["content"]}
+    #             for m in st.session_state.messages
+    #         ],
+    #         stream=True,
+    #     ):
+    #         full_response += response.choices[0].delta.get("content", "")
+    #         message_placeholder.markdown(full_response + "▌")
+    #     message_placeholder.markdown(full_response)
+    # st.session_state.messages.append({"role": "assistant", "content": full_response})
+
 
 # clear_button = clear_button_slot.button("Clear Conversation", key="clear")
 

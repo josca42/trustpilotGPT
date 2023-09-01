@@ -66,42 +66,54 @@ class CRUDBase(Generic[ModelType, EngineType]):
             stmt = delete(self.model).where(self.model.id == id)
             session.exec(stmt)
 
-    def where(self, equals: dict = {}, _in: dict = {}) -> List[ModelType]:
+    def where(
+        self, equals: dict = {}, _in: dict = {}, start_date=None, end_date=None, cols=[]
+    ) -> List[ModelType]:
         with Session(self.engine) as session:
-            stmt = select(self.model)
+            stmt = (
+                select(*[getattr(self.model, s) for s in cols])
+                if cols
+                else select(self.model)
+            )
             if equals:
                 stmt = stmt.where(
                     and_(*[getattr(self.model, k) == v for k, v in equals.items()])
                 )
             if _in:
                 stmt = stmt.where(
-                    or_(*[getattr(models.Bank, k).in_(v) for k, v in _in.items()])
+                    or_(*[getattr(self.model, k).in_(v) for k, v in _in.items()])
                 )
+
+            if start_date and end_date:
+                stmt = stmt.where(self.model.timestamp.between(start_date, end_date))
+            elif start_date:
+                stmt = stmt.where(self.model.timestamp >= start_date)
+            elif end_date:
+                stmt = stmt.where(self.model.timestamp <= end_date)
+            else:
+                pass
+
             result = session.exec(stmt).all()
-        return pd.DataFrame([r.dict() for r in result])
+
+        cols = cols if cols else self.model.__fields__.keys()
+        return pd.DataFrame.from_records(
+            result,
+            columns=cols,
+        )
 
 
 class CRUDCompany(CRUDBase[models.Company, Engine]):
-    def where(
-        self, similarity_query: str, lookup_type: str, type: str = None
-    ) -> Tuple[str, str]:
+    def most_similar_name(self, similarity_query: str) -> Tuple[str, str]:
         query_emb = embed(similarity_query)[0]
         with Session(self.engine) as session:
-            stmt = select(self.model.name, self.model.type)
-            stmt = (
-                stmt.where(
-                    and_(self.model.lookup_type == lookup_type, self.model.type == type)
-                )
-                if type
-                else stmt.where(self.model.lookup_type == lookup_type)
-            )
+            stmt = select(self.model.name)
             stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb)).limit(1)
             result = session.exec(stmt).first()
         return result
 
 
 class CRUDReview(CRUDBase[models.Review, EngineType]):
-    def where(
+    def similarity_query(
         self,
         cols,
         start_date=None,
@@ -146,13 +158,10 @@ class CRUDReview(CRUDBase[models.Review, EngineType]):
 def exec_sql(sql):
     try:
         with Session(engine) as session:
-            result = session.exec(sql).all()
-        df = pd.DataFrame.from_records(
-            result,
-            columns=sql[sql.index("SELECT") + len("SELECT") : sql.index("FROM")]
-            .strip()
-            .split(", "),
-        )
+            result_proxy = session.execute(sql)
+            result = result_proxy.all()
+            column_names = result_proxy.keys()
+        df = pd.DataFrame.from_records(result, columns=column_names)
         return df
     except Exception as e:
         raise ValueError("Invalid SQL query")

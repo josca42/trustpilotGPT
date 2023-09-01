@@ -6,6 +6,7 @@ import wandb
 from wandb.sdk.data_types.trace_tree import Trace
 import os
 from datetime import datetime
+import cohere
 from assistant.config import config
 
 os.environ["WANDB_MODE"] = "disabled"
@@ -16,8 +17,9 @@ wandb.login(
 run = wandb.init(
     project="sdc-chat",
 )
-
 config = dotenv_values()
+
+LLM_cohere = cohere.Client(config["COHERE_API_KEY"])
 
 
 def num_tokens_from_string(string: str, model: str = "gpt-3.5-turbo") -> int:
@@ -27,16 +29,25 @@ def num_tokens_from_string(string: str, model: str = "gpt-3.5-turbo") -> int:
     return num_tokens
 
 
-def embed(texts: Union[list[str], str]):
+def embed(texts: Union[list[str], str], model="cohere"):
     if isinstance(texts, str):
         texts = [texts]
     texts = [text.replace("\n", " ") for text in texts]
 
-    response = openai.Embedding.create(
-        input=texts,
-        model="text-embedding-ada-002",
-    )
-    return [data.get("embedding") for data in response.data]
+    if model == "cohere":
+        response = LLM_cohere.embed(
+            texts=texts,
+            model="embed-multilingual-v2.0",
+        )
+        embeddings = response.embeddings
+    else:
+        response = openai.Embedding.create(
+            input=texts,
+            model="text-embedding-ada-002",
+        )
+        embeddings = [data.get("embedding") for data in response.data]
+
+    return embeddings
 
 
 class GPT:
@@ -58,7 +69,7 @@ class GPT:
     def completion(
         self,
         messages,
-        model="gpt-3.5-turbo-0613",
+        model="gpt-4",  # "gpt-3.5-turbo-0613",
         temperature=0,
         functions=[],
         stop=None,

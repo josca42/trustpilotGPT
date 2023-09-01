@@ -19,6 +19,8 @@ def analyze(df):
 # exec(compile(node, "<ast>", "exec"), local_namespace)
 # fig = local_namespace.get("fig")
 # return dcc.Graph(figure=fig, style=style)
-
-
-
+#
+#
+#
+#
+#
