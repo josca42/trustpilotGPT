@@ -104,4 +104,5 @@ pattern = "**/*.py"
 start = "pylsp"
 
 [deployment]
-run = ["sh", "-c", "python3 scripts/trustpilot_scraping.py"]
+# run = ["sh", "-c", "python3 scripts/trustpilot_scraping.py"]
+run = "python3 scripts/trustpilot_scraping.py"
