@@ -1,5 +1,6 @@
 { pkgs }: {
   deps = [
+    pkgs.tmux
     pkgs.postgresql
     pkgs.python310Full
     pkgs.replitPackages.prybar-python310

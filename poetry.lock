@@ -58,6 +58,20 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "asgiref"
+version = "3.7.2"
+description = "ASGI specs, helper code, and adapters"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+typing-extensions = {version = ">=4", markers = "python_version < \"3.11\""}
+
+[package.extras]
+tests = ["pytest", "pytest-asyncio", "mypy (>=0.800)"]
+
+[[package]]
 name = "async-timeout"
 version = "4.0.3"
 description = "Timeout context manager for asyncio programs"
@@ -104,6 +118,17 @@ optional = false
 python-versions = ">=3.7"
 
 [[package]]
+name = "bs4"
+version = "0.0.1"
+description = "Dummy package for Beautiful Soup"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+beautifulsoup4 = "*"
+
+[[package]]
 name = "cachetools"
 version = "5.3.1"
 description = "Extensible memoizing collections and decorators"
@@ -145,6 +170,91 @@ description = "Cross-platform colored terminal text."
 category = "main"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
+
+[[package]]
+name = "django"
+version = "4.2.4"
+description = "A high-level Python web framework that encourages rapid development and clean, pragmatic design."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+asgiref = ">=3.6.0,<4"
+sqlparse = ">=0.3.1"
+tzdata = {version = "*", markers = "sys_platform == \"win32\""}
+
+[package.extras]
+argon2 = ["argon2-cffi (>=19.1.0)"]
+bcrypt = ["bcrypt"]
+
+[[package]]
+name = "django-concurrent-server"
+version = "0.1.4"
+description = "Provides a multi-threaded (concurrent) development sever for Django."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "django-haystack"
+version = "2.0.0"
+description = "Pluggable search for Django."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "django-nvd3"
+version = "0.9.7"
+description = "Django NVD3 - Chart Library for d3.js"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+python-nvd3 = "0.14.2"
+
+[[package]]
+name = "django-taggit"
+version = "4.0.0"
+description = "django-taggit is a reusable Django application for simple tagging."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+Django = ">=3.2"
+
+[[package]]
+name = "django-taggit-machinetags"
+version = "1.0.0"
+description = "Machine tagging built upon django-taggit"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+django-taggit = ">=1.0.0"
+
+[[package]]
+name = "django-tests-assistant"
+version = "0.3.0"
+description = "A tool to help keep track of tests, specially for you - developer."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+django = "*"
+django-concurrent-server = "*"
+django-haystack = "2.0.0"
+django-nvd3 = "*"
+django-taggit = "*"
+django-taggit-machinetags = "*"
+markdown = "*"
+unicodecsv = "*"
+whoosh = "2.4"
 
 [[package]]
 name = "docker-pycreds"
@@ -265,6 +375,18 @@ python-versions = ">=3.8"
 
 [package.dependencies]
 referencing = ">=0.28.0"
+
+[[package]]
+name = "markdown"
+version = "3.4.4"
+description = "Python implementation of John Gruber's Markdown."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.extras]
+docs = ["mkdocs (>=1.0)", "mkdocs-nature (>=0.4)", "mdx-gh-links (>=0.2)"]
+testing = ["coverage", "pyyaml"]
 
 [[package]]
 name = "markdown-it-py"
@@ -540,6 +662,29 @@ python-versions = ">=3.8"
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "python-nvd3"
+version = "0.14.2"
+description = "Python NVD3 - Chart Library for d3.js"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Jinja2 = ">=2.8"
+python-slugify = "1.1.4"
+
+[[package]]
+name = "python-slugify"
+version = "1.1.4"
+description = "A Python Slugify application that handles Unicode"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+Unidecode = ">=0.04.16"
+
+[[package]]
 name = "pytz"
 version = "2023.3"
 description = "World timezone definitions, modern and historical"
@@ -758,6 +903,19 @@ SQLAlchemy = ">=1.4.17,<=1.4.41"
 sqlalchemy2-stubs = "*"
 
 [[package]]
+name = "sqlparse"
+version = "0.4.4"
+description = "A non-validating SQL parser."
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[package.extras]
+dev = ["flake8", "build"]
+doc = ["sphinx"]
+test = ["pytest", "pytest-cov"]
+
+[[package]]
 name = "streamlit"
 version = "1.25.0"
 description = "A faster way to build and share data apps"
@@ -893,6 +1051,22 @@ tzdata = {version = "*", markers = "platform_system == \"Windows\""}
 devenv = ["black", "check-manifest", "flake8", "pyroma", "pytest-cov", "pytest-mock (>=3.3)", "pytest (>=4.3)", "zest.releaser"]
 
 [[package]]
+name = "unicodecsv"
+version = "0.14.1"
+description = "Python2's stdlib csv module is nice, but it doesn't support unicode. This module is a drop-in replacement which *does*."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "unidecode"
+version = "1.3.6"
+description = "ASCII transliterations of Unicode text"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[[package]]
 name = "urllib3"
 version = "2.0.4"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -970,6 +1144,14 @@ python-versions = ">=3.7"
 watchmedo = ["PyYAML (>=3.10)"]
 
 [[package]]
+name = "whoosh"
+version = "2.4.0"
+description = "Fast, pure-Python full text indexing, search, and spell checking library."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "yarl"
 version = "1.9.2"
 description = "Yet another URL library"
@@ -996,22 +1178,31 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "f95423975aa26454cce7b05ef39875acfa10e810c227f6a780095b3753b7dcdf"
+content-hash = "f83b92baf9ac2beb21646339edf6dca31aa3463233c0278c27c8f381ff13c2cf"
 
 [metadata.files]
 aiohttp = []
 aiosignal = []
 altair = []
 appdirs = []
+asgiref = []
 async-timeout = []
 attrs = []
 beautifulsoup4 = []
 blinker = []
+bs4 = []
 cachetools = []
 certifi = []
 charset-normalizer = []
 click = []
 colorama = []
+django = []
+django-concurrent-server = []
+django-haystack = []
+django-nvd3 = []
+django-taggit = []
+django-taggit-machinetags = []
+django-tests-assistant = []
 docker-pycreds = []
 frozenlist = []
 gitdb = []
@@ -1022,6 +1213,7 @@ importlib-metadata = []
 jinja2 = []
 jsonschema = []
 jsonschema-specifications = []
+markdown = []
 markdown-it-py = []
 markupsafe = []
 mdurl = []
@@ -1044,6 +1236,8 @@ pygments = []
 pympler = []
 python-dateutil = []
 python-dotenv = []
+python-nvd3 = []
+python-slugify = []
 pytz = []
 pytz-deprecation-shim = []
 pyyaml = []
@@ -1060,6 +1254,7 @@ soupsieve = []
 sqlalchemy = []
 sqlalchemy2-stubs = []
 sqlmodel = []
+sqlparse = []
 streamlit = []
 tenacity = []
 tiktoken = []
@@ -1070,9 +1265,12 @@ tqdm = []
 typing-extensions = []
 tzdata = []
 tzlocal = []
+unicodecsv = []
+unidecode = []
 urllib3 = []
 validators = []
 wandb = []
 watchdog = []
+whoosh = []
 yarl = []
 zipp = []
