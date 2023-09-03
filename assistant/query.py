@@ -5,96 +5,109 @@ import json
 from jinja2 import Template
 from json.decoder import JSONDecodeError
 from datetime import datetime
-from datetime import datetime
-from assistant.funcs.data import query_data
+from assistant.config import CATEGORY_INT2STR
+from assistant.db import crud
 
 
-def data(query: str, gpt):
-    json_request_string = query_to_request_json(query, gpt)
-    queries = parse_request_string(json_request_string)
-    results = query_data(queries, gpt)
-    # FIXME do some processing on the data
-    return results
-
-
-def query_to_request_json(query: str, gpt) -> str:
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    system_msg = API_CALL_SYSTEM_MESSAGE.render(current_date=current_date)
-    messages = (
-        [dict(role="system", content=system_msg)]
-        + API_CALL_EXAMPLES
-        + [dict(role="user", content=query)]
+def sql(query, metadata, gpt) -> str:
+    # Extract filters from metadata
+    start_date = metadata.pop("start_date")
+    end_date = metadata.pop("end_date")
+    filters_stmt = " AND ".join(
+        [f"{k} in {tuple(v)}" for k, v in metadata.items() if v]
     )
-    json_request_string = gpt.completion(messages=messages, model="gpt-3.5-turbo")
-    return json_request_string.message.content
+
+    # Get ChatGPT to create sql query
+    chatgpt_query = SQL_QUERY_PROMPT.render(
+        question=query,
+        filters=filters_stmt,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    sql_query = gpt.completion(
+        model="gpt-3.5-turbo",
+        messages=[dict(role="user", content=chatgpt_query)],
+        stop="SQLResult:",
+    )
+    sql_query = sql_query.strip(' "\n')
+
+    # Execute sql query and return result
+    df = crud.exec_sql(sql_query)
+    query_result = dict(
+        query=sql_query,
+        result=df.head(20).astype(str).to_dict("records"),
+    )
+    return query_result
 
 
-def parse_request_string(json_request_string: str):
-    try:
-        json_request = json.loads(json_request_string)
-    except JSONDecodeError:
-        raise Exception(f"Could not decode JSON request string: {json_request_string}")
-    return json_request["queries"]
+def data(plan, metadata):
+    COLS, limit = get_cols(plan)
+    _in = dict(company=metadata["companies"], category=metadata["categories"])
+    params = dict(
+        cols=COLS,
+        limit=limit,
+        _in=_in,
+        start_date=metadata["start_date"],
+        end_date=metadata["end_date"],
+    )
+    df = crud.review.where(**params)
+    if "category" in df.columns and not df.empty:
+        df["category"] = df["category"].apply(lambda x: CATEGORY_INT2STR[x])
+    return dict(query=params, data=df)
 
 
-###    Prompt templates    ###
+def get_cols(plan):
+    COLS = ["company", "category", "rating"]
+    review_bool = any("ANALYSE REVIEWS" in s for s in plan)
+    eda_bool = any("ANALYSE DATA" in s for s in plan)
+    COLS = COLS + ["content"] if review_bool else COLS
+    COLS = COLS + ["timestamp"] if eda_bool else COLS
+    limit = 300 if review_bool and not eda_bool else False
+    return COLS, limit
 
-API_CALL_SYSTEM_MESSAGE = Template(
-    """Your task is to convert a given question into an API request using the JSON format shown below, which contains an array of queries. Keep in mind the guidelines for each field in the query object while converting the question.
 
-```json
-{
-  "queries": [
-    {
-      "date_range": {
-        "start": "start date",
-        "end": "end date"
-      },
-      "category": "category type",
-      "company": "company name",
-      "country": "country code",
-      "similarity_query": "similarity query text"
-    }
-  ]
-}
-```
+###   Prompts   ###
+SQL_QUERY_PROMPT = Template(
+    """Given an input question, first create a syntactically correct PostgreSQL query to run, then look at the results of the query and return the answer.
 
-Guidelines for query object fields:
+Never query for all the columns from a specific table, only ask for the few relevant columns given the question.
 
-1. date_range: Include 'start' and 'end' fields in 'yyyy-mm-dd' format when specified in the question, otherwise, omit this field. The current date is {{ current_date }}.
-2. category: Set this field to one of the given values when a review type is mentioned, otherwise, omit it: 'customer service', 'counseling', 'mobile/web bank', 'fees and interest rates'.
-3. company: Mention the company's name if the question is about a specific company, otherwise, omit this field.
-4. country: Use the respective country code (e.g., 'DK', 'NO', 'SE', 'FO') if a specific country is mentioned, otherwise, omit this field.
-5. similarity_query: Set this field with the query text if a specific semantic query is mentioned, otherwise, omit it.
+Pay attention to use only the column names that you can see in the schema description. Be careful to not query for columns that do not exist.
 
-For complex questions, divide them into sub-questions and refine results using the parameters 'date_range', 'category', 'company', and 'country', with the optional 'similarity_query' for querying or ordering by semantic similarity. Ensure you accurately transform the question into the JSON structure, taking care to attend to the subtleties and details provided in the prompt."""
+Use the following format:
+
+Question: "Question here"
+SQLQuery: "SQL Query to run"
+SQLResult: "Result of the SQLQuery"
+Answer: "Final answer here"
+
+Use the table review, where each row is a review along with the review rating and category. Each company has multiple reviews. The table review has the following columns:
+
+rating: integer. The rating of the review on a scale from 1 to 5. 
+timestamp: datetime. The timestamp of the review.
+category: Review category.
+company: The company that the review is about.
+
+{% if filters -%}
+Add the following filters to the query:
+{{ filters}}
+
+{% endif -%}
+
+{% if start_date and not end_date -%}
+Add the following date filter to the query:
+timestamp >= '{{ start_date }}'
+
+{% elif end_date and not start_date -%}
+Add the following date filter to the query:
+timestamp <= '{{ end_date }}'
+
+{% elif start_date and end_date -%}
+Add the following date filter to the query:
+timestamp BETWEEN '{{ start_date }}' AND '{{ end_date }}'
+
+{% endif -%}
+
+Question: {{ question}}
+SQLQuery:"""
 )
-
-API_CALL_EXAMPLES = [
-    dict(
-        role="user",
-        content="Hvad siger kunderne om hhv. Danske Bank, Lunar eller Bankdata ud fra anmeldelser givet efter d. 31. januar 2023",
-    ),
-    dict(
-        role="assistant",
-        content="""{
-    "queries": [
-        {"company": "Danske Bank", "date_range": {"start": "2023-02-01"}},
-        {"company": "Lunar", "date_range": {"start": "2023-02-01"}},
-        {"company": "Bankdata", "date_range": {"start": "2023-02-01"}},
-    ]
-}""",
-    ),
-    dict(
-        role="user",
-        content="Hvilken bank har den højeste gennemsnitlige rating for kundeservice i Norge?",
-    ),
-    dict(
-        role="assistant",
-        content="""{
-        "queries": [
-            {"country": "NO", "category": "customer service", "query": "What company has the highest average rating?"}
-        ]
-    }""",
-    ),
-]

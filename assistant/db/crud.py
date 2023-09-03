@@ -67,7 +67,14 @@ class CRUDBase(Generic[ModelType, EngineType]):
             session.exec(stmt)
 
     def where(
-        self, equals: dict = {}, _in: dict = {}, start_date=None, end_date=None, cols=[]
+        self,
+        equals: dict = {},
+        _in: dict = {},
+        start_date=None,
+        end_date=None,
+        cols=[],
+        limit=False,
+        similarity_query=False,
     ) -> List[ModelType]:
         with Session(self.engine) as session:
             stmt = (
@@ -77,11 +84,11 @@ class CRUDBase(Generic[ModelType, EngineType]):
             )
             if equals:
                 stmt = stmt.where(
-                    and_(*[getattr(self.model, k) == v for k, v in equals.items()])
+                    and_(*[getattr(self.model, k) == v for k, v in equals.items() if v])
                 )
             if _in:
                 stmt = stmt.where(
-                    or_(*[getattr(self.model, k).in_(v) for k, v in _in.items()])
+                    or_(*[getattr(self.model, k).in_(v) for k, v in _in.items() if v])
                 )
 
             if start_date and end_date:
@@ -93,8 +100,20 @@ class CRUDBase(Generic[ModelType, EngineType]):
             else:
                 pass
 
+            if similarity_query:
+                query_emb = embed(similarity_query)[0]
+                stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb))
+            else:
+                if "timestamp" in cols:
+                    stmt.order_by(self.model.timestamp.desc())
+                else:
+                    pass
+
+            if limit:
+                stmt = stmt.limit(limit)
             result = session.exec(stmt).all()
 
+        result = session.exec(stmt).all()
         cols = cols if cols else self.model.__fields__.keys()
         return pd.DataFrame.from_records(
             result,
@@ -113,46 +132,7 @@ class CRUDCompany(CRUDBase[models.Company, Engine]):
 
 
 class CRUDReview(CRUDBase[models.Review, EngineType]):
-    def similarity_query(
-        self,
-        cols,
-        start_date=None,
-        end_date=None,
-        equals: dict = {},
-        similarity_query: str = None,
-        limit=None,
-        *args,
-        **kwargs
-    ) -> List[ModelType]:
-        with Session(self.engine) as session:
-            stmt = select(*[getattr(self.model, s) for s in cols])
-            where_stmts = []
-            if equals:
-                where_stmts += [getattr(self.model, k) == v for k, v in equals.items()]
-                stmt = stmt.where(and_(*where_stmts))
-
-            if start_date and end_date:
-                stmt = stmt.where(self.model.timestamp.between(start_date, end_date))
-            elif start_date:
-                stmt = stmt.where(self.model.timestamp >= start_date)
-            elif end_date:
-                stmt = stmt.where(self.model.timestamp <= end_date)
-            else:
-                pass
-
-            if similarity_query:
-                query_emb = embed(similarity_query)[0]
-                stmt = stmt.order_by(self.model.embedding.l2_distance(query_emb))
-            else:
-                stmt.order_by(self.model.timestamp.desc())
-
-            if limit:
-                stmt = stmt.limit(limit)
-            result = session.exec(stmt).all()
-        return pd.DataFrame.from_records(
-            result,
-            columns=cols,
-        )
+    ...
 
 
 def exec_sql(sql):

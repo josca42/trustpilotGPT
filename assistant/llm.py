@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 import cohere
 from assistant.config import config
+import streamlit
 
 os.environ["WANDB_MODE"] = "disabled"
 
@@ -20,13 +21,6 @@ run = wandb.init(
 config = dotenv_values()
 
 LLM_cohere = cohere.Client(config["COHERE_API_KEY"])
-
-
-def num_tokens_from_string(string: str, model: str = "gpt-3.5-turbo") -> int:
-    """Returns the number of tokens in a text string."""
-    encoding = tiktoken.encoding_for_model(model)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
 
 
 def embed(texts: Union[list[str], str], model="cohere"):
@@ -51,12 +45,12 @@ def embed(texts: Union[list[str], str], model="cohere"):
 
 
 class GPT:
-    def __init__(self, log) -> None:
+    def __init__(self, log, st: streamlit = None) -> None:
         self.user_conversation = []
         self.steps = []
         self.log = log
         self.root_span = None
-        self.st_msg_placeholder = None
+        self.st = st
 
         if log:
             self.root_span = Trace(
@@ -74,32 +68,38 @@ class GPT:
         functions=[],
         stop=None,
         name="",
-        stream=False,
-    ):
+        use_expander=False,
+        write_to_streamlit=True,
+    ) -> str:
+        def stream_response_to_streamlit(response, st):
+            with st.chat_message("assistant"):
+                message_placeholder = self.st.empty()
+                full_response = ""
+                for chunk in response:
+                    full_response += chunk.choices[0].delta.get("content", "")
+                    message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+            return full_response
+
         start = timestamp()
 
-        if functions:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                functions=functions,
-                stream=stream,
-            )
-        else:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                stop=stop,
-                stream=stream,
-            )
+        stream = True if self.st and write_to_streamlit else False
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            stop=stop,
+            stream=stream,
+        )
 
-        if stream and self.st_msg_placeholder is not None:
-            full_response = ""
-            for chunk in response:
-                full_response += chunk.choices[0].delta.get("content", "")
-                self.st_msg_placeholder.markdown(full_response + "▌")
+        if stream:
+            if use_expander:
+                with self.st.expander(name):
+                    full_response = stream_response_to_streamlit(response, self.st)
+            else:
+                full_response = stream_response_to_streamlit(response, self.st)
+        else:
+            full_response = response.choices[0].message.content
 
         if self.log:
             self.root_span.add_child(
@@ -108,11 +108,11 @@ class GPT:
                     start_time_ms=start,
                     end_time_ms=timestamp(),
                     inputs=wandb_format_msgs(messages),
-                    outputs=wandb_format_response(response),
+                    outputs=full_response,
                 )
             )
 
-        return response.choices[0]
+        return full_response
 
     def finish(self):
         self.root_span.end_time_ms = timestamp()
@@ -127,10 +127,8 @@ def wandb_format_msgs(msgs):
     return {msg["role"]: msg["content"] for msg in msgs}
 
 
-def wandb_format_response(response):
-    response = response.choices[0]
-    if response.finish_reason == "function_call":
-        func_call = response.message.function_call
-        return {func_call.name: func_call.arguments}
-    else:
-        return response.message["content"]
+def num_tokens_from_string(string: str, model: str = "gpt-3.5-turbo") -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.encoding_for_model(model)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens

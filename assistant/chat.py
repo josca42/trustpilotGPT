@@ -1,16 +1,19 @@
 import wandb
 from dotenv import dotenv_values
-from datetime import datetime
 from wandb.sdk.data_types.trace_tree import Trace
 from assistant import query
-from assistant.funcs.plot import create_plot
 import json
 import ast
 import re
 from assistant.llm import GPT
 from jinja2 import Template
 from assistant.config import config
+from assistant.db import crud
+from assistant import query, plot, analyse
 import os
+import pandas as pd
+from datetime import datetime
+import streamlit
 
 os.environ["WANDB_MODE"] = "disabled"
 
@@ -23,79 +26,81 @@ run = wandb.init(
 )
 
 
-def chat(messages: list[dict], st):
-    gpt = GPT(log=False)
-    # Make plan for the task
-    plan = create_plan(messages, gpt)
+def chat(messages: list[dict], st: streamlit = None):
+    gpt = GPT(log=False, st=st)
+    # metadata = extract_metadata(messages, gpt)
+    # plan = create_plan(messages, gpt)
 
+    metadata = {
+        "companies": ["Danske Bank", "Lunar", "Frøs Sparekasse"],
+        "start_date": "",
+        "end_date": "",
+        "categories": [],
+    }
+    plan = [
+        "PLOT: ['ratings and review count time series comparing companies', 'ratings distribution comparing companies']",
+        "GET: Fetch data",
+        "ANALYSE REVIEWS: Summarise the reviews",
+    ]
+    question = messages[-1]["content"]
     for step in plan:
-        action, action_input = step.split(":")
+        action, action_input = [a.strip() for a in step.split(":")]
         if action == "SQL":
-
+            query_sql = query.sql(query=action_input, metadata=metadata, gpt=gpt)
+            sql_analysis = analyse.sql_query(
+                query=query_sql, question=question, gpt=gpt
+            )
         elif action == "GET":
-        
+            query_data = query.data(plan=plan, metadata=metadata)
         elif action == "PLOT":
-        
-        elif action == "ANALYSE DATA":
-        
+            fig = plot.create(metadata=metadata, plots=action_input, gpt=gpt)
+            break
         elif action == "ANALYSE REVIEWS":
-        
+            review_text_analysis = analyse.review_text(
+                query_data=query_data, question=question, gpt=gpt
+            )
+            pass
         else:
             raise ValueError(f"Unexpected action: {action}")
 
-        elif response.finish_reason == "function_call":
-            func_call = response.message.function_call
-            func_name, func_kwargs = func_call.name, json.loads(func_call.arguments)
-            if func_name == "get_review_data":
-                results = query.data(query=func_kwargs["query"], gpt=gpt)
-                results_data, results_str = [], []
-                for result in results:
-                    if "data" in result:
-                        data = result.pop("data")
-                        results_str.append(result.copy())
-                        result["SQLResult"] = data
-                        results_data.append(result)
-                    else:
-                        results_str.append(result)
-                        results_data.append(result)
-
-                results_str = json.dumps(results_str, ensure_ascii=False)
-                messages.append(
-                    dict(
-                        role="function",
-                        name="get_review_data",
-                        content=f"Query results:\n\n{results_str}",
-                    )
-                )
-
-            elif func_name == "analyse":
-                analyze(results_data, gpt)
-            elif func_name == "plot":
-                fig = create_plot(**func_kwargs)
-                st.plotly_chart(fig)
-
-                messages.append(
-                    dict(
-                        role="function",
-                        name="plot",
-                        content=f"The function has just plotted a {func_kwargs['plot_type']} figure for companies {func_kwargs['companies']}",
-                    )
-                )
-            else:
-                raise ValueError(f"Unexpected function call: {func_name}")
-
-        else:
-            raise ValueError(f"Unexpected finish reason: {response.finish_reason}")
-
-    return messages, st
+    return st, messages
 
 
 def create_plan(messages: list[dict], gpt):
-    response = gpt.completion(
-        messages=[dict(role="system", content=PLANNER_SYSTEM_MSG)] + messages
+    response_txt = gpt.completion(
+        messages=[dict(role="system", content=PLANNER_SYS_MSG)]
+        + PLANNER_EXAMPLES
+        + messages,
+        model="gpt-4",
+        use_expander=True,
+        name="Create plan",
     )
-    plan = extract_array(response.message.content)
+    plan = extract_array(response_txt)
     return plan
+
+
+def extract_metadata(messages: list[dict], gpt):
+    response_txt = gpt.completion(
+        messages=[
+            dict(
+                role="system",
+                content=METADATA_EXTRACTION_SYS_MSG.render(
+                    current_date=datetime.now().strftime("%Y-%m-%d")
+                ),
+            )
+        ]
+        + messages,
+        model="gpt-3.5-turbo",
+        use_expander=True,
+        name="Extract metadata",
+    )
+    metadata = json.loads(response_txt)
+    metadata["companies"] = [
+        crud.company.most_similar_name(company) for company in metadata["companies"]
+    ]
+    metadata["start_date"] = str2date(metadata["start_date"])
+    metadata["end_date"] = str2date(metadata["end_date"])
+    return metadata
 
 
 def extract_array(input_str: str) -> list[str]:
@@ -107,70 +112,84 @@ def extract_array(input_str: str) -> list[str]:
     if match is not None:
         return ast.literal_eval(match[0])
     else:
-        return handle_multiline_string(input_str)
+        return []
 
 
-def handle_multiline_string(input_str: str) -> list[str]:
-    # Handle multiline string as a list
-    processed_lines = [
-        re.sub(r".*?(\d+\..+)", r"\1", line).strip()
-        for line in input_str.split("\n")
-        if line.strip() != ""
-    ]
-
-    # Check if there is at least one line that starts with a digit and a period
-    if any(re.match(r"\d+\..+", line) for line in processed_lines):
-        return processed_lines
+def str2date(date_str):
+    if date_str == "":
+        return ""
     else:
-        raise RuntimeError(f"Failed to extract array from {input_str}")
+        try:
+            return pd.to_datetime(date_str).date()
+        except:
+            return ""
 
 
-# You can actually specify function_call: 'none' and then specify on your prompt something like “you are an assistant that always replies with multiple function calls. Reply with straight JSON ready to be parsed.”. It works as expected.
-
-
-###    Prompt templates   ###
-
-
-PLANNER_SYSTEM_MSG = """You are a task creation AI called AgentGPT. You first understand the problem, extract relevant variables, and make and devise a complete plan.
+###   Prompts  ###
+PLANNER_SYS_MSG = """You are a task creation AI called AgentGPT. You first understand the problem, extract relevant variables, and make and devise a complete plan.
 
 You are answering questions from users about customer reviews of companies on Trustpilot. Create a list of step by step actions to accomplish the goal. Use at most 4 steps.
 
 You can take the following actions:
 SQL: Sends the question to a sql agent that creates a SQL query that answers the question. Returns the result of the SQL query.
 GET: Sends the question to a data agent that gets relevant data. Returns the data.
-PLOT: Creates a plot. The following plots are available: 'ratings piechart', 'ratings piecharts by category', 'ratings time series'. The action does not need a GET action to fetch data.
-ANALYSE DATA: Create data analysis of the data fetched by the GET action.
-ANALYSE REVIEWS: Summarise, interpret or extract patterns from the review text.
-
-If the question can be answered by a SQL query then only take one action, SQL.
+PLOT: Sends array of relevant plots to a plot agent that returns the plots. The following plots are available: 'ratings piechart for single company', 'ratings piecharts by review category for single company', 'ratings time series for single company', 'ratings and review count time series comparing companies', 'ratings distribution comparing companies'. The action does not need a GET action to fetch data.
+ANALYSE REVIEWS: Summarise, interpret and extract patterns from the text content of the reviews fetched by the GET action.
 
 Return the response as a formatted array of strings that can be used in JSON.parse()"""
 
+PLANNER_EXAMPLES = [
+    dict(
+        role="user",
+        content="Hvilket firma har den højeste gennemsnitlige rating",
+    ),
+    dict(
+        role="assistant",
+        content="""["SQL: Which company has the highest average rating?"]""",
+    ),
+    dict(
+        role="user",
+        content="Hvordan har folk anmeldt Danske Bank?",
+    ),
+    dict(
+        role="assistant",
+        content="""[
+"PLOT: ['ratings time series for single company', 'ratings piecharts by review category for single company']",
+"GET: Fetch data",
+"ANALYSE REVIEWS: Summarise the reviews",
+ ]""",
+    ),
+    dict(
+        role="user",
+        content="Hvilket firma kan folk bedste lide af hhv. Danske Bank, Lunar eller Nordea målt på anmeldelser efter 1 januar 2023?",
+    ),
+    dict(
+        role="assistant",
+        content="""[
+"PLOT: ['ratings and review count time series comparing companies', 'ratings distribution comparing companies']",
+"GET: Fetch data",
+"ANALYSE REVIEWS: Summarise the reviews",
+ ]""",
+    ),
+]
 
-# API_ANALYSIS_SYSTEM_MESSAGE = """As a skilled analyst specializing in customer review data, your task is to answer questions from bank employees and app developers about the customer review data for either the mobile bank app or the bank itself, using the API response provided below.
 
-# API Response Structure:
+"GET: Fetch the average ratings for Danske Bank, Lunar, and Nordea after 1st January 2023", "PLOT: 'ratings distribution comparing companies'", "ANALYSE REVIEWS: Summarise and interpret the reviews for Danske Bank, Lunar, and Nordea after 1st January 2023"
 
-# [
+METADATA_EXTRACTION_SYS_MSG = Template(
+    """You are a metadata extraction agent. You extract relevant metadata from questions. You specifically extract relevant company names, start date and end date and categories. Only extract categories if a category like one of the following categories are mentioned: 'customer service', 'counseling', 'mobile/web bank', 'fees and interest rates'. If a date is extracted write the date in 'yyyy-mm-dd'. The current date is {{ current_date }}.
+ 
+You return the results on the following form:
 
-#     {
-#         review_query: "The review query string",
-#         reviews: ["review string", "review string", ...],
-#         /* Each review string is the content of a unique review */
-#     },
-#     {
-#             "SQLQuery": "SQL query string",
-#             "SQLResult": "SQL query result",
-#             "SQLResultDescription": "Description of the SQL query result",
-#     }
-# ]
+{
+companies: [],
+start_date: "",
+end_date: "",
+categories: []
+}
 
-# When responding, ensure to address the specific question asked, and focus on the patterns, trends, and insights derived from the data in the API response. The response should be flexible and adaptable to various relevant and creative questions, emphasizing accuracy and relevance.
-# Always answer in the same language as the question. Never mention the API data.
-
-# {% if short_answer -%}
-# The reponse should be at most 150 words
-# {% endif -%}"""
+If the question does not mention any company names then let the companies list be empty. Likewise if no categories are mentioned you let the category list be empty. If no start date and/or end date is mentioned then let the date be an empty string."""
+)
 
 
 if __name__ == "__main__":
@@ -178,7 +197,7 @@ if __name__ == "__main__":
         [
             dict(
                 role="user",
-                content="Hvilken bank kan folk bedste lide af hhv. Danske Bank, Lunar og Nordea",
+                content="Hvilkt firma foretrækker folk af hhv. Danske Bank, Lunar og Frøs Sparekasse?",
             )
         ],
         st=None,
