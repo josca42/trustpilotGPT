@@ -12,13 +12,14 @@ openai = "0.27.8"
 wandb = "0.15.8"
 tiktoken = "0.4.0"
 plotly = "5.16.1"
-streamlit = "1.25.0"
 beautifulsoup4 = "4.12.2"
 pgvector = "0.2.1"
 python-dotenv = "1.0.0"
 psycopg2 = "2.9.7"
 bs4 = "^0.0.1"
 django-tests-assistant = "^0.3.0"
+streamlit = "1.26.0"
+cohere = "4.22"
 
 [tool.poetry.dev-dependencies]
 

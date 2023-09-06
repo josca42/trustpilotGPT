@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import plotly.express as px
 
-load_dotenv()
+# load_dotenv()
 
 config = os.environ
 

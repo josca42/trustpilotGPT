@@ -31,23 +31,24 @@ frozenlist = ">=1.1.0"
 
 [[package]]
 name = "altair"
-version = "5.0.1"
+version = "5.1.1"
 description = "Vega-Altair: A declarative statistical visualization library for Python."
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 
 [package.dependencies]
 jinja2 = "*"
 jsonschema = ">=3.0"
 numpy = "*"
-pandas = ">=0.18"
+packaging = "*"
+pandas = ">=0.25"
 toolz = "*"
 typing-extensions = {version = ">=4.0.1", markers = "python_version < \"3.11\""}
 
 [package.extras]
-dev = ["black (<24)", "hatch", "ipython", "m2r", "mypy", "pandas-stubs", "pytest", "pytest-cov", "ruff", "types-jsonschema", "types-setuptools", "vega-datasets", "vl-convert-python"]
-doc = ["docutils", "geopandas", "jinja2", "myst-parser", "numpydoc", "pillow", "pydata-sphinx-theme", "sphinx", "sphinx-copybutton", "sphinx-design", "sphinxext-altair"]
+dev = ["anywidget", "black (<24)", "hatch", "ipython", "m2r", "mypy", "pandas-stubs", "pyarrow (>=11)", "pytest", "pytest-cov", "ruff", "types-jsonschema", "types-setuptools", "vega-datasets", "vegafusion[embed] (>=1.4.0)", "vl-convert-python (>=0.13.0)"]
+doc = ["docutils", "geopandas", "jinja2", "myst-parser", "numpydoc", "pillow (>=9,<10)", "pydata-sphinx-theme", "sphinx", "sphinx-copybutton", "sphinx-design", "sphinxext-altair"]
 
 [[package]]
 name = "appdirs"
@@ -93,6 +94,14 @@ dev = ["attrs", "pre-commit"]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-towncrier", "towncrier", "zope-interface"]
 tests = ["attrs", "zope-interface"]
 tests-no-zope = ["cloudpickle", "hypothesis", "mypy (>=1.1.1)", "pympler", "pytest-mypy-plugins", "pytest-xdist", "pytest (>=4.3.0)"]
+
+[[package]]
+name = "backoff"
+version = "2.2.1"
+description = "Function decoration for backoff and retry"
+category = "main"
+optional = false
+python-versions = ">=3.7,<4.0"
 
 [[package]]
 name = "beautifulsoup4"
@@ -162,6 +171,22 @@ python-versions = ">=3.7"
 
 [package.dependencies]
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[[package]]
+name = "cohere"
+version = "4.22"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.7,<4.0"
+
+[package.dependencies]
+aiohttp = ">=3.0,<4.0"
+backoff = ">=2.0,<3.0"
+fastavro = {version = "1.8.2", markers = "python_version >= \"3.8\""}
+importlib_metadata = ">=6.0,<7.0"
+requests = ">=2.25.0,<3.0.0"
+urllib3 = ">=1.26,<3"
 
 [[package]]
 name = "colorama"
@@ -266,6 +291,20 @@ python-versions = "*"
 
 [package.dependencies]
 six = ">=1.4.0"
+
+[[package]]
+name = "fastavro"
+version = "1.8.2"
+description = "Fast read/write of AVRO files"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.extras]
+codecs = ["python-snappy", "zstandard", "lz4"]
+lz4 = ["lz4"]
+snappy = ["python-snappy"]
+zstandard = ["zstandard"]
 
 [[package]]
 name = "frozenlist"
@@ -580,11 +619,11 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pyarrow"
-version = "12.0.1"
+version = "13.0.0"
 description = "Python library for Apache Arrow"
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 
 [package.dependencies]
 numpy = ">=1.16.6"
@@ -766,7 +805,7 @@ jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "rpds-py"
-version = "0.9.2"
+version = "0.10.2"
 description = "Python bindings to Rust's persistent data structures (rpds)"
 category = "main"
 optional = false
@@ -917,7 +956,7 @@ test = ["pytest", "pytest-cov"]
 
 [[package]]
 name = "streamlit"
-version = "1.25.0"
+version = "1.26.0"
 description = "A faster way to build and share data apps"
 category = "main"
 optional = false
@@ -1082,7 +1121,7 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "validators"
-version = "0.21.2"
+version = "0.22.0"
 description = "Python Data Validation for Humans™"
 category = "main"
 optional = false
@@ -1090,12 +1129,13 @@ python-versions = ">=3.8"
 
 [package.extras]
 docs-offline = ["myst-parser (>=2.0.0)", "pypandoc-binary (>=1.11)", "sphinx (>=7.1.1)"]
-docs-online = ["mkdocs (>=1.5.2)", "mkdocs-material (>=9.1.21)", "mkdocstrings[python] (>=0.22.0)", "pyaml (>=23.7.0)"]
+docs-online = ["mkdocs (>=1.5.2)", "mkdocs-git-revision-date-localized-plugin (>=1.2.0)", "mkdocs-material (>=9.2.6)", "mkdocstrings[python] (>=0.22.0)", "pyaml (>=23.7.0)"]
 hooks = ["pre-commit (>=3.3.3)"]
-runner = ["tox (>=4.6.4)"]
+package = ["build (>=1.0.0)", "twine (>=4.0.2)"]
+runner = ["tox (>=4.11.1)"]
 sast = ["bandit[toml] (>=1.7.5)"]
 testing = ["pytest (>=7.4.0)"]
-tooling = ["black (>=23.7.0)", "ruff (>=0.0.280)", "pyright (>=1.1.320)"]
+tooling = ["black (>=23.7.0)", "ruff (>=0.0.287)", "pyright (>=1.1.325)"]
 tooling-extras = ["pyaml (>=23.7.0)", "pypandoc-binary (>=1.11)", "pytest (>=7.4.0)"]
 
 [[package]]
@@ -1178,7 +1218,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "f83b92baf9ac2beb21646339edf6dca31aa3463233c0278c27c8f381ff13c2cf"
+content-hash = "17b5a8e0993950ce46c82c0a6531907496b9019aefeb1ab116bb7782dd65a028"
 
 [metadata.files]
 aiohttp = []
@@ -1188,6 +1228,7 @@ appdirs = []
 asgiref = []
 async-timeout = []
 attrs = []
+backoff = []
 beautifulsoup4 = []
 blinker = []
 bs4 = []
@@ -1195,6 +1236,7 @@ cachetools = []
 certifi = []
 charset-normalizer = []
 click = []
+cohere = []
 colorama = []
 django = []
 django-concurrent-server = []
@@ -1204,6 +1246,7 @@ django-taggit = []
 django-taggit-machinetags = []
 django-tests-assistant = []
 docker-pycreds = []
+fastavro = []
 frozenlist = []
 gitdb = []
 gitpython = []
