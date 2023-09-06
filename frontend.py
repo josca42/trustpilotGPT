@@ -3,9 +3,7 @@ import openai
 from dotenv import dotenv_values
 import numpy as np
 from assistant.chat import chat
-
-config = dotenv_values()
-st.session_state.messages = []
+from assistant.config import config
 
 st.title("ChatGPT-like clone")
 
@@ -29,31 +27,22 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
+    if message["role"] == "user":
+        with st.chat_message("user", avatar="🧑‍💻"):
+            st.markdown(message["content"])
+    elif message["role"] == "assistant":
+        with st.chat_message("assistant", avatar="🤖"):
+            st.markdown(message["content"])
+    elif message["role"] == "plot":
+        st.plotly_chart(message["content"], use_container_width=True)
+    else:
+        pass
 
 if prompt := st.chat_input("What is up?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🧑‍💻"):
         st.markdown(prompt)
 
-    st, messages = chat(messages=st.session_state.messages, st=st)
-
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-
-# clear_button = clear_button_slot.button("Clear Conversation", key="clear")
-
-# import streamlit as st
-# with st.expander('an expander'):
-#     if st.button('a button'):
-#         with st.spinner('a spinner'):
-#             # do something
-
-# https://github.com/microsoft/az-oai-chatgpt-streamlit-harness
-
-
-# with st.chat_message("assistant"):
-#     st.write("Hello human")
-#     st.bar_chart(np.random.randn(30, 3))
+    messages_input = [m for m in st.session_state.messages if m["role"] != "plot"][-3:]
+    messages = chat(messages=messages_input, st=st)
+    st.session_state.messages.extend(messages)

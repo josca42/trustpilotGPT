@@ -3,8 +3,9 @@ from plotly.subplots import make_subplots
 import plotly
 from datetime import timedelta
 import ast
-
+import pandas as pd
 from assistant.db import crud
+from assistant import analyse
 from assistant.config import (
     LABEL_COLORS,
     LABELS,
@@ -12,9 +13,9 @@ from assistant.config import (
 )
 
 
-def create(metadata: dict, plots: list[str], gpt) -> str:
-    plots = ast.literal_eval(plots)
-    _in = dict(company=metadata["companies"], category=metadata["categories"])
+def create(metadata: dict, plots: list[str]) -> str:
+    companies = metadata["companies"]
+    _in = dict(company=companies, category=metadata["categories"])
     df = crud.review.where(
         _in=_in,
         cols=["company", "timestamp", "rating", "category"],
@@ -24,28 +25,28 @@ def create(metadata: dict, plots: list[str], gpt) -> str:
     if df.empty:
         return "No data available"
 
+    plots_fig = []
     for plot in plots:
         if plot == "ratings time series for single company":
-            fig = ratings_pie_chart_total(df)
+            fig_data = ratings_time_series(df)
         elif plot == "ratings piecharts by review category for single company":
-            fig = ratings_pie_chart_category(df)
+            fig_data = ratings_pie_chart_category(df)
         elif plot == "ratings piechart for single company":
-            fig = ratings_time_series(df)
+            fig_data = ratings_pie_chart_total(df)
         elif plot == "ratings and review count time series comparing companies":
-            fig = timeseries_compare(df, companies=metadata["companies"])
+            fig_data = timeseries_compare(df, companies=companies)
         elif plot == "ratings distribution comparing companies":
-            fig = bar_plot_compare(df, companies=metadata["companies"])
+            fig_data = bar_plot_compare(df, companies=companies)
         else:
             raise ValueError(f"Unknown plot type: {plot_type}")
 
-        gpt.st.plotly_chart(fig, use_container_width=True)
-
-    return f"The following plots have been plotted: {plots}"
+        plots_fig.append(fig_data)
+    return plots_fig
 
 
 def ratings_pie_chart_total(df):
     ratings = df["rating"].value_counts().sort_index()
-    fig = go.Figure()
+    fig = go.Figure(layout=dict(margin=dict(t=0, b=0, l=0, r=0)))
     fig.add_trace(
         go.Pie(
             values=ratings.values,
@@ -61,16 +62,21 @@ def ratings_pie_chart_total(df):
         hoverinfo="percent+value+name",
         marker=dict(colors=colors),
     )
-    fig = fig.update_layout(showlegend=False, title="Rating distribution")
-    return fig
+    fig = fig.update_layout(showlegend=False)
+
+    # Create dataframe used to describe plot
+    ratings = ratings.reset_index()
+    ratings["percentage"] = (ratings["count"] / ratings["count"].sum() * 100).round(1)
+    plot_descr = "the distribution of review ratings."
+    return dict(fig=fig, data=ratings.reset_index(), descr=plot_descr)
 
 
 def ratings_pie_chart_category(df):
     N = len(LABELS)
-    categories = categories if categories else list(range(N))
+    dfs = []
     fig = make_subplots(rows=1, cols=N, specs=[[{"type": "domain"}] * N])
     for i, (label, label_val) in enumerate(LABELS):
-        ratings = df[df["label"] == label_val]["rating"].value_counts().sort_index()
+        ratings = df[df["category"] == label_val]["rating"].value_counts().sort_index()
         colors = [COLORS[int(rating) - 1] for rating in ratings.index]
         pie_chart = go.Pie(
             values=ratings.values,
@@ -87,14 +93,23 @@ def ratings_pie_chart_category(df):
             i + 1,
         )
 
+        # Add ratings row to dataframe used for interpreting plot
+        ratings = ratings.to_frame().T
+        ratings.index = [label]
+        dfs.append(ratings)
+
+    dfs = pd.concat(dfs).fillna(0).reset_index().rename(columns={"index": "category"})
+    dfs = dfs.rename(
+        columns={c: f"# reviews {c} stars" for c in dfs.columns if c in list(range(6))}
+    )
+    plot_descr = "the distribution of review ratings for each review category."
+
     fig = fig.update_traces(
         hole=0.6,
         hoverinfo="percent+value+name",
     )
-    fig = fig.update_layout(
-        showlegend=False, title="Rating distribution by review category"
-    )
-    return fig
+    fig = fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0))
+    return dict(fig=fig, data=dfs, descr=plot_descr)
 
 
 def ratings_time_series(df):
@@ -121,7 +136,6 @@ def ratings_time_series(df):
         yaxis=dict(title_text="Antal"),
         barmode="relative",
         showlegend=False,
-        title="Rating distribution and mean rating over time",
     )
     colors = ["#ff9b85", "#ee6055", "#ffd97d", "#aaf683", "#60d394"]
     rating_labels = ["2", "1", "3", "4", "5"]
@@ -162,7 +176,22 @@ def ratings_time_series(df):
         fig = fig.update_layout(xaxis=dict(title_text="Dag"))
     else:
         pass
-    return fig
+
+    # Create dataframe used to describe plot
+    ratings = ratings.abs()
+    star_cols = [c for c in ratings.columns if c in list(range(6))]
+    ratings[star_cols] = (
+        ratings[star_cols] / ratings[star_cols].sum(axis=1).values.reshape(-1, 1) * 100
+    ).round(2)
+    ratings = (
+        ratings.reset_index()
+        .rename(columns={"rating": "mean rating"})
+        .rename(columns={i: f"# reviews {i} stars" for i in star_cols})
+    )
+    # Plot description
+    plot_descr = "the average review rating and the number of reviews with 0 stars, 1 stars, 2 stars ..., 5 stars for different time periods. Each row corresponds to the review ratings for a time period."
+
+    return dict(fig=fig, data=ratings, descr=plot_descr)
 
 
 def timeseries_compare(df, companies):
@@ -176,6 +205,7 @@ def timeseries_compare(df, companies):
     freq = set_time_frequence(start_date, end_date)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
     # Add mean and count time series plots
+    data = {}
     i = 0
     for company in companies:
         df_t = df.loc[df["company"] == company, "rating"]
@@ -208,6 +238,7 @@ def timeseries_compare(df, companies):
             col=1,
         )
         i += 1
+        data[company] = df_t.reset_index().round(1)
 
     fig.update_layout(
         margin=dict(t=0, b=0, l=0, r=0),
@@ -218,7 +249,6 @@ def timeseries_compare(df, companies):
         ),
         hovermode="x unified",
         # legend_tracegroupgap=260,
-        title="Mean rating and total number of reviews over time",
     )
     fig.update_yaxes(range=[1, 5], row=1, col=1)
     fig.update_yaxes(title_text="☆ rating", row=1, col=1)
@@ -232,8 +262,8 @@ def timeseries_compare(df, companies):
         fig = fig.update_xaxes(title_text="Dag", row=3, col=1)
     else:
         pass
-
-    return fig
+    plot_descr = "the average review rating and the number of reviews for different time periods. Each row corresponds to the review ratings for a time period."
+    return dict(fig=fig, data=data, descr=plot_descr)
 
 
 def bar_plot_compare(df_r, companies):
@@ -248,7 +278,6 @@ def bar_plot_compare(df_r, companies):
         yaxis=dict(title_text="Firma"),
         barmode="relative",
         showlegend=False,
-        title="Rating distribution by company",
     )
 
     colors = ["#ee6055", "#ff9b85", "#ffd97d", "#aaf683", "#60d394"]
@@ -285,7 +314,23 @@ def bar_plot_compare(df_r, companies):
                     + df_rating["count"].astype(str),
                 ),
             )
-    return fig
+
+    # Create dataframe used to describe plot
+    df = (
+        df_r.drop("category", axis=1)
+        .groupby("company")["rating"]
+        .value_counts()
+        .unstack(1)
+        .fillna(0)
+    )
+    star_cols = [c for c in df.columns if c in list(range(6))]
+    df[star_cols] = (df[star_cols] / df.sum(axis=1).values.reshape(-1, 1) * 100).round(
+        1
+    )
+    df = df.reset_index().rename(columns={c: f"% {c} stars reviews" for c in star_cols})
+    plot_descr = "the distribution of review ratings for each company."
+
+    return dict(fig=fig, data=df, descr=plot_descr)
 
 
 def set_time_frequence(start_date, end_date):

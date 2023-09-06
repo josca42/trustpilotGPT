@@ -9,7 +9,7 @@ from assistant.config import CATEGORY_INT2STR
 from assistant.db import crud
 
 
-def sql(query, metadata, gpt) -> str:
+def sql(queries, metadata, gpt) -> str:
     # Extract filters from metadata
     start_date = metadata.pop("start_date")
     end_date = metadata.pop("end_date")
@@ -17,53 +17,53 @@ def sql(query, metadata, gpt) -> str:
         [f"{k} in {tuple(v)}" for k, v in metadata.items() if v]
     )
 
-    # Get ChatGPT to create sql query
-    chatgpt_query = SQL_QUERY_PROMPT.render(
-        question=query,
-        filters=filters_stmt,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    sql_query = gpt.completion(
-        model="gpt-3.5-turbo",
-        messages=[dict(role="user", content=chatgpt_query)],
-        stop="SQLResult:",
-    )
-    sql_query = sql_query.strip(' "\n')
+    queries_result = []
+    for query in queries:
+        # Get ChatGPT to create sql query
+        chatgpt_query = SQL_QUERY_PROMPT.render(
+            question=query,
+            filters=filters_stmt,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        sql_query = gpt.completion(
+            model="gpt-3.5-turbo",
+            messages=[dict(role="user", content=chatgpt_query)],
+            stop="SQLResult:",
+            write_to_streamlit=False,
+            name="SQL query",
+            kind="llm",
+        )
+        sql_query = sql_query.strip(' "\n')
 
-    # Execute sql query and return result
-    df = crud.exec_sql(sql_query)
-    query_result = dict(
-        query=sql_query,
-        result=df.head(20).astype(str).to_dict("records"),
-    )
-    return query_result
+        # Execute sql query and return result
+        df = crud.exec_sql(sql_query)
+        queries_result.append(
+            dict(
+                SQLQuery=sql_query,
+                SQLResult=df.head(20).astype(str).to_dict("records"),
+            )
+        )
+    return queries_result
 
 
-def data(plan, metadata):
-    COLS, limit = get_cols(plan)
-    _in = dict(company=metadata["companies"], category=metadata["categories"])
+def data(queries, metadata):
     params = dict(
-        cols=COLS,
-        limit=limit,
-        _in=_in,
+        cols=["company", "category", "content"],
+        limit=int(150 / len(queries)),
+        _in=dict(company=metadata["companies"], category=metadata["categories"]),
         start_date=metadata["start_date"],
         end_date=metadata["end_date"],
     )
-    df = crud.review.where(**params)
-    if "category" in df.columns and not df.empty:
+    df = []
+    for query in queries:
+        df_t = crud.review.where(similarity_query=query, **params)
+        df_t["similarity_query"] = query
+        df.append(df_t)
+    df = pd.concat(df)
+    if not df.empty:
         df["category"] = df["category"].apply(lambda x: CATEGORY_INT2STR[x])
-    return dict(query=params, data=df)
-
-
-def get_cols(plan):
-    COLS = ["company", "category", "rating"]
-    review_bool = any("ANALYSE REVIEWS" in s for s in plan)
-    eda_bool = any("ANALYSE DATA" in s for s in plan)
-    COLS = COLS + ["content"] if review_bool else COLS
-    COLS = COLS + ["timestamp"] if eda_bool else COLS
-    limit = 300 if review_bool and not eda_bool else False
-    return COLS, limit
+    return df
 
 
 ###   Prompts   ###

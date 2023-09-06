@@ -10,13 +10,13 @@ import cohere
 from assistant.config import config
 import streamlit
 
-os.environ["WANDB_MODE"] = "disabled"
+# os.environ["WANDB_MODE"] = "disabled" # FIXME: Uncomment this line to disable wandb during development
 
 wandb.login(
     key=config["WANDB_API_KEY"],
 )
 run = wandb.init(
-    project="sdc-chat",
+    project="trustpilot-chat",
 )
 config = dotenv_values()
 
@@ -45,9 +45,8 @@ def embed(texts: Union[list[str], str], model="cohere"):
 
 
 class GPT:
-    def __init__(self, log, st: streamlit = None) -> None:
-        self.user_conversation = []
-        self.steps = []
+    def __init__(self, log: bool, question: str, st: streamlit = None) -> None:
+        self.question = question
         self.log = log
         self.root_span = None
         self.st = st
@@ -58,6 +57,7 @@ class GPT:
                 kind="agent",
                 start_time_ms=timestamp(),
                 metadata={"user": "josca"},
+                inputs={"user": question},
             )
 
     def completion(
@@ -68,19 +68,9 @@ class GPT:
         functions=[],
         stop=None,
         name="",
-        use_expander=False,
+        kind="",
         write_to_streamlit=True,
     ) -> str:
-        def stream_response_to_streamlit(response, st):
-            with st.chat_message("assistant"):
-                message_placeholder = self.st.empty()
-                full_response = ""
-                for chunk in response:
-                    full_response += chunk.choices[0].delta.get("content", "")
-                    message_placeholder.markdown(full_response + "▌")
-                message_placeholder.markdown(full_response)
-            return full_response
-
         start = timestamp()
 
         stream = True if self.st and write_to_streamlit else False
@@ -93,11 +83,14 @@ class GPT:
         )
 
         if stream:
-            if use_expander:
-                with self.st.expander(name):
-                    full_response = stream_response_to_streamlit(response, self.st)
-            else:
-                full_response = stream_response_to_streamlit(response, self.st)
+            with self.st.chat_message("assistant", avatar="🤖"):
+                message_placeholder = self.st.empty()
+                full_response = ""
+                for chunk in response:
+                    full_response += chunk.choices[0].delta.get("content", "")
+                    message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+
         else:
             full_response = response.choices[0].message.content
 
@@ -105,10 +98,12 @@ class GPT:
             self.root_span.add_child(
                 Trace(
                     name=name,
+                    kind=kind if kind else None,
                     start_time_ms=start,
                     end_time_ms=timestamp(),
                     inputs=wandb_format_msgs(messages),
-                    outputs=full_response,
+                    outputs={"assistant": full_response},
+                    model=model,
                 )
             )
 
