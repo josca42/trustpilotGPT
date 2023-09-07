@@ -15,7 +15,7 @@ def sql_query(queries, gpt):
     messages = [dict(role="system", content=SQL_SYS_MSG)] + [
         dict(role="user", content=user_query)
     ]
-    analysis = gpt.completion(messages=messages, model="gpt-4", name="SQL", kind="llm")
+    analysis = gpt.completion(messages=messages, name="SQL", kind="llm")
     return analysis
 
 
@@ -38,9 +38,7 @@ def review_text(df_reviews, gpt):
     messages = [dict(role="system", content=REVIEW_ANALYSIS_SYS_MSG)] + [
         dict(role="user", content=user_msg)
     ]
-    analysis = gpt.completion(
-        messages=messages, model="gpt-4", name="Review", kind="llm"
-    )
+    analysis = gpt.completion(messages=messages, name="Review", kind="llm")
     return analysis
 
 
@@ -72,7 +70,7 @@ def plots(plots, companies, gpt):
         messages.append(dict(role="assistant", content=analysis))
 
         analysis_msgs.append(dict(role="plot", content=fig))
-        analysis_msgs.append(dict(role="asisstant", content=analysis))
+        analysis_msgs.append(dict(role="assistant", content=analysis))
 
     return analysis_msgs
 
@@ -99,7 +97,6 @@ def get_representative_sample(df, max_tokens):
 
 
 ###   Prompts   ###
-
 SQL_SYS_MSG = """As a skilled analyst specializing in customer reviews, your task is to answer questions about customer reviews using a provided SQL query and corresponding SQL result. The format of a user question is therefore as follows:
 
 Queries:
@@ -120,7 +117,6 @@ SQL_USER_QUERY = Template(
 Question: {{ question }}"""
 )
 
-
 REVIEW_ANALYSIS_SYS_MSG = """As a skilled analyst specializing in customer review data, your task is to answer questions by analysing the provided reviews. The format of a user question is therefore as follows:
 
 Reviews:
@@ -138,8 +134,7 @@ Reviews:
 Question: User question
 
 When responding, ensure to address the specific question asked, and focus on the patterns, trends, and insights derived from reviews. The response should be flexible and adaptable to various relevant and creative questions, emphasizing accuracy and relevance.
-Always answer in the same language as the question.
-"""
+Always answer in the same language as the question."""
 
 REVIEW_ANALYSIS_USER_QUERY = Template(
     """Reviews:

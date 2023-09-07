@@ -65,7 +65,6 @@ def extract_metadata(messages: list[dict], gpt):
             )
         ]
         + messages,
-        model="gpt-3.5-turbo",
         name="Metadata",
         kind="chain",
     )
@@ -83,7 +82,6 @@ def create_plan(messages: list[dict], gpt):
         messages=[dict(role="system", content=PLANNER_SYS_MSG)]
         + PLANNER_EXAMPLES
         + messages,
-        model="gpt-4",
         name="Plan",
         kind="chain",
     )
@@ -188,3 +186,4 @@ if __name__ == "__main__":
 
 
 ex_1 = "Hvilkt firma foretrækker folk af hhv. Danske Bank, Lunar og Frøs Sparekasse?"
+ex_2 = "Hvordan har danske banks rating udviklet sig siden 1 januar 2023"
