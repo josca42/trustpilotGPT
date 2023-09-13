@@ -1,1 +1,1 @@
-# sdc-chat
+# TrustpilotGPT
